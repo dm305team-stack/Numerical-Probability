@@ -10,6 +10,11 @@
 !.env.example
 *.key
 
+# Copias del propio repositorio descargadas como ZIP. Se colaron enteras en el
+# commit f15a675 con un `git add -A`: 3.801 ficheros, el repo dentro de si mismo.
+Sources/REPO/
+*-main.zip
+
 # Intermedios del compilador de Swift: 924 MB que salen solos de `swift build`.
 .build/
 
