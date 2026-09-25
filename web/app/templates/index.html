@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Numerical Probability</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+<main>
+  <header class="cabecera">
+    <h1>Numerical&nbsp;Probability</h1>
+    <p class="sub">
+      {{ a.matriz.nombre }} · {{ a.n }} sorteos analizados ·
+      próximo sorteo {{ proximo.strftime('%d/%m/%Y') }}
+    </p>
+  </header>
+
+  <form class="peticion" hx-post="/generar" hx-target="#salida" hx-swap="innerHTML"
+        hx-indicator="#cargando">
+    <p class="rotulo">Petición</p>
+    <span class="onda" aria-hidden="true"></span>
+    <label for="peticion" class="etiqueta">Pide lo que quieras, en tus palabras</label>
+    <textarea id="peticion" name="peticion" rows="2" autofocus
+      placeholder="Dame cinco combinaciones, con el 12 en algunos y sin el 13"></textarea>
+    <div class="fila">
+      <input type="text" name="semilla_fijada" inputmode="numeric"
+             placeholder="semilla (opcional)" class="semilla" title="Fija una semilla para reproducir exactamente una tirada anterior">
+      <button type="submit">Generar</button>
+      <span id="cargando" class="cargando">calculando…</span>
+    </div>
+    <p class="pista">
+      {% if hay_modelo %}Interpretación por modelo, con respaldo local.
+      {% else %}Sin <code>OPENROUTER_API_KEY</code>: intérprete local, determinista.{% endif %}
+      Los números los calcula siempre el motor, nunca el modelo.
+    </p>
+  </form>
+
+  <div id="salida"></div>
+
+  <details class="rigor" hx-get="/rigor" hx-trigger="toggle once" hx-target="find .cuerpo">
+    <summary>Cómo se calculó</summary>
+    <div class="cuerpo"><p class="cargando-panel">cargando el análisis…</p></div>
+  </details>
+
+  <footer>
+    <p>
+      Herramienta de análisis estadístico. No predice resultados ni mejora la
+      probabilidad de ganar: en una lotería justa todas las combinaciones valen
+      lo mismo. Juega solo lo que puedas permitirte perder.
+    </p>
+  </footer>
+</main>
+</body>
+</html>

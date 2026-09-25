@@ -1,0 +1,30 @@
+# Secretos: el repo es PÚBLICO. Nada de esto entra jamás.
+.env
+.env.*
+*.key
+secrets/
+
+# Dependencias descargadas y artefactos de compilación
+.build/
+dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+node_modules/
+
+# El plugin ECC: 94 MB de código de terceros, no es de este proyecto
+ECC/
+
+# Derivados que se regeneran solos
+web/data/analysis_cache.json
+web/data/*.db
+web/data/*.db-*
+
+# Material de terceros con derechos: no se redistribuye
+Knowledge/Leonardo of Pisa (Fibonacci).pdf
+Knowledge/Markov Chains_ Concept and Applications.pdf
+Knowledge/Richard Wiseman’s The Luck Factor.pdf
+
+# Ruido de macOS
+.DS_Store
