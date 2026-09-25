@@ -16,6 +16,16 @@ from llm.openrouter import texto_limpio
 cliente = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _sesion():
+    """La app exige sesion en cuanto hay APP_KEY. Ver tests/test_seguridad.py."""
+    import seguridad
+    if seguridad.APP_KEY:
+        cliente.cookies.set("sesion", seguridad.emitir_sesion())
+    yield
+    cliente.cookies.clear()
+
+
 # ------------------------------------------------------- guardia de cifras
 @pytest.mark.parametrize("texto,pasa", [
     # lo unico que puede escribir el modelo: prosa sin ninguna cantidad

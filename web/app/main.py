@@ -24,6 +24,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+import entorno
+
+entorno.cargar()   # primero de todo: web/.env -> os.environ
+
 import engine
 import seguridad
 from engine.generate import NoConverge

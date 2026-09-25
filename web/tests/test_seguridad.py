@@ -19,6 +19,20 @@ from app.main import app
 cliente = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _sesion():
+    """Con APP_KEY definida (lo normal en cuanto existe web/.env) la app exige
+    sesion ANTES de mirar la entrada, asi que estos tests tienen que entrar.
+
+    Ese orden es deliberado: un desconocido no debe poder gastar ni una
+    validacion. El test de que el orden es ese esta abajo, aparte.
+    """
+    if seguridad.APP_KEY:
+        cliente.cookies.set("sesion", seguridad.emitir_sesion())
+    yield
+    cliente.cookies.clear()
+
+
 # --------------------------------------------- longitud de entrada
 def test_peticion_larga_se_rechaza():
     """Sin tope, el texto del usuario entra entero en el prompt de pago."""
@@ -77,14 +91,17 @@ def test_clave_en_tiempo_constante_y_sin_clave_no_valida():
     assert seguridad.clave_correcta("x" * 5000) is False
 
 
-def test_la_cookie_no_deriva_de_la_clave():
+def test_la_cookie_no_deriva_de_la_clave(monkeypatch):
     """Si la cookie fuese sha256(APP_KEY), filtrarla equivaldria a filtrar la
-    clave y no habria forma de invalidarla sin cambiar la clave."""
+    clave y no habria forma de invalidarla sin cambiar la clave.
+
+    monkeypatch y no asignacion directa: seguridad.APP_KEY es estado de modulo,
+    y dejarlo tocado hace que los tests siguientes se salten en silencio.
+    """
     import hashlib
-    seguridad.APP_KEY = "una-clave-de-prueba-larga"
+    monkeypatch.setattr(seguridad, "APP_KEY", "una-clave-de-prueba-larga")
     assert seguridad.emitir_sesion() != hashlib.sha256(
         seguridad.APP_KEY.encode()).hexdigest()
-    seguridad.APP_KEY = ""
 
 
 def test_arranque_falla_cerrado_sin_clave(monkeypatch):
@@ -148,3 +165,26 @@ def test_la_redaccion_no_recibe_el_texto_del_usuario():
     fuente = inspect.getsource(openrouter.redactar)
     assert "peticion" not in fuente
     assert "parametros[" in fuente
+
+
+def test_el_acceso_se_comprueba_antes_que_la_entrada():
+    """Un desconocido no debe poder gastar ni siquiera una validacion de entrada.
+
+    Con clave configurada, /generar responde 401 a una peticion sin sesion
+    aunque la entrada sea invalida: primero quien eres, luego que mandas.
+    """
+    if not seguridad.APP_KEY:
+        pytest.skip("sin APP_KEY configurada no hay puerta que comprobar")
+    sin_sesion = TestClient(app)
+    r = sin_sesion.post("/generar", data={"peticion": "a" * 5000})
+    assert r.status_code == 401
+    assert "caracteres" not in r.text   # ni siquiera le dice por que
+
+
+def test_rigor_y_estado_tambien_estan_tras_la_puerta():
+    if not seguridad.APP_KEY:
+        pytest.skip("sin APP_KEY configurada no hay puerta que comprobar")
+    sin_sesion = TestClient(app)
+    assert sin_sesion.get("/rigor").status_code == 401
+    assert sin_sesion.get("/salud").status_code == 401
+    assert sin_sesion.get("/healthz").status_code == 200   # este es publico

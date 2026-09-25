@@ -19,6 +19,12 @@ import secrets
 import time
 from collections import defaultdict, deque
 
+import entorno
+
+# web/.env se carga ANTES de leer nada de os.environ: las variables de abajo
+# se resuelven en tiempo de import y sin esto llegarian vacias.
+entorno.cargar()
+
 # ------------------------------------------------------------- limites duros
 MAX_PETICION = 400        # una peticion de loteria no necesita mas
 MAX_SEMILLA_DIGITOS = 19  # cabe en 64 bits con holgura
