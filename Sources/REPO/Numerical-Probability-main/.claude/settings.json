@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit --quiet -m 'fix\\(numerical-probability\\): resolve 6-vs-5 prompt inconsistency as 5+1 structure *)"
+    ]
+  }
+}

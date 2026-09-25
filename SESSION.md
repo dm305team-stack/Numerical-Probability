@@ -1,6 +1,8 @@
 # SESSION — Numerical Probability
 
-> ⚠️ **Handoff más reciente: [SESSION-2026-07-27.md](SESSION-2026-07-27.md)** — baseline
+> ⚠️ **Handoff más reciente: [SESSION-2026-09-25.md](SESSION-2026-09-25.md)** — web app
+> construida y en GitHub, el corpus contaminado con Double Play, y la revisión de
+> seguridad. Antes de esa: [SESSION-2026-07-27.md](SESSION-2026-07-27.md) — baseline
 > local generado, dos bugs de datos en Base-Secuence.pdf documentados, bitácora de
 > sorteos abierta. Este archivo queda como registro de la sesión de junio.
 

@@ -1,0 +1,31 @@
+{
+  "huella": "cd0c65450d488983",
+  "veredicto": {
+    "principales": {
+      "x2": 79.42395209580839,
+      "df": 68,
+      "p": 0.16206547425603451,
+      "uniforme": true
+    },
+    "extra": {
+      "x2": 13.568862275449101,
+      "df": 25,
+      "p": 0.9687374749073704,
+      "uniforme": true
+    },
+    "runs": {
+      "runs": 1011,
+      "esperado": 994.4796175138399,
+      "z": 0.7414287820156301,
+      "sin_memoria": true
+    },
+    "markov": {
+      "x2": 14.169137303075662,
+      "p": 0.11305,
+      "sin_dependencia": true,
+      "permutaciones": 20000
+    },
+    "combinaciones": 292201338,
+    "probabilidad_pct": 3.4222978130237034e-07
+  }
+}
