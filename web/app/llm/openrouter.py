@@ -41,14 +41,26 @@ _NUMERO_PALABRA = re.compile(
 # Vocabulario prohibido: promesas, supersticion de loteria y consejo financiero.
 # Estas son las frases que convertirian una herramienta de analisis en un
 # producto que enga\u00f1a, que es el eje real del riesgo legal.
+# Lo que es falso DIGA LO QUE DIGA la frase: promesas, supersticion de loteria
+# y consejo financiero.
 _PROHIBIDO = re.compile(
     r"\b(garantiz\w*|asegur\w*|segur[oa]s?\b|infalible|imbatible|"
     r"caliente|fri[oa]s?\b|atrasad\w*|le toca|tocan?\b|"
     r"predic\w*|pronostic\w*|anticip\w*|adivin\w*|"
-    r"m[aá]s probable|mejor combinaci|mayor probabilidad|m[aá]s posibilidades|"
     r"suerte|afortunad\w*|ganar[aá]s|vas a ganar|no puedes perder|"
     r"invierte|invertir|apuesta fuerte|dobla|"
     r"guaranteed|surefire|hot number|due to hit|lucky)", re.I)
+
+# Comparaciones de probabilidad: estas SOLO son falsas si se afirman. Negadas
+# son exactamente lo que la app debe decir ("no tienen mayor probabilidad que
+# cualquier otra"). Bloquearlas siempre rechazaba la frase mas honesta que el
+# modelo puede escribir: medido, 3 de cada 8 redacciones buenas.
+_COMPARATIVO = re.compile(
+    r"\b(m[aá]s probables?|mayor(?:es)? probabilidad(?:es)?|mejor(?:es)? combinaci\w*|"
+    r"m[aá]s posibilidades|m[aá]s opciones de|more likely|better odds)", re.I)
+_NEGACION = re.compile(
+    r"\b(no|ni|ning[uú]n[ao]?|sin|tampoco|jam[aá]s|nunca|neither|not|any)\b", re.I)
+VENTANA_NEGACION = 48   # caracteres hacia atras donde se busca la negacion
 
 
 class SinClave(RuntimeError):
@@ -73,17 +85,24 @@ def _cabeceras():
 
 
 async def _pedir(mensajes, *, esquema=None, max_tokens=1600, temperatura=0.2,
-                 modelo=None, esfuerzo="low"):
+                 modelo=None, esfuerzo=os.environ.get("OPENROUTER_ESFUERZO", "low")):
+    elegido = modelo or MODELO_POR_DEFECTO
     cuerpo = {
-        "model": modelo or MODELO_POR_DEFECTO,
+        "model": elegido,
         "messages": mensajes,
         "max_tokens": max_tokens,
         "temperature": temperatura,
-        # Sin esto, los modelos de razonamiento se gastan TODO el cupo pensando
-        # y devuelven contenido vacio con finish_reason="length". Medido:
-        # 256 de 256 tokens en razonamiento y content=None.
-        "reasoning": {"effort": esfuerzo},
     }
+    # El parametro `reasoning` es una navaja de dos filos:
+    #   - Los gpt-5 SIN el se gastan el cupo entero pensando y devuelven
+    #     contenido VACIO con finish_reason="length" (medido: 256 de 256).
+    #   - Los routers como typesafe/jev-router lo RECHAZAN con un 400: "No
+    #     configured model/effort candidate satisfies the requested reasoning
+    #     effort and routing policy". Eligen ellos el modelo y el esfuerzo, que
+    #     es justo para lo que existen.
+    # Por eso se omite en los routers y se puede apagar con OPENROUTER_ESFUERZO="".
+    if esfuerzo and "router" not in elegido.lower():
+        cuerpo["reasoning"] = {"effort": esfuerzo}
     if esquema is not None:
         # OpenAI en modo strict exige que 'required' incluya TODAS las claves de
         # 'properties' y que additionalProperties sea false. Sin eso devuelve un
@@ -154,6 +173,10 @@ def motivo_de_rechazo(texto):
     m = _PROHIBIDO.search(texto)
     if m:
         return f"el modelo usó vocabulario prohibido ({m.group(0)!r})"
+    for m in _COMPARATIVO.finditer(texto):
+        antes = texto[max(0, m.start() - VENTANA_NEGACION):m.start()]
+        if not _NEGACION.search(antes):
+            return f"el modelo afirmó una ventaja de probabilidad ({m.group(0)!r})"
     return None
 
 
