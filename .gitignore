@@ -1,6 +1,9 @@
 # Secretos: el repo es PÚBLICO. Nada de esto entra jamás.
 .env
 .env.*
+# ...pero la plantilla SÍ va al repo: es la documentación de qué variables hacen
+# falta. Sin esta excepción, `.env.*` también la tapaba.
+!.env.example
 *.key
 secrets/
 
