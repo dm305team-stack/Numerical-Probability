@@ -119,8 +119,15 @@ def test_generar_respeta_las_restricciones():
              for li in re.findall(r"<li>(.*?)</li>", r.text, re.S)]
     bolas = [b for b in bolas if b]
     assert len(bolas) == 6
-    assert sum(1 for b in bolas if "12" in b[:-1]) == 2
+    # "en algunos" es un MINIMO, no una cuota: el 12 es el tercero del ranking
+    # y un boleto no forzado puede elegirlo por su cuenta. Fijar el numero
+    # exacto convierte un resultado incidental en contrato.
+    assert sum(1 for b in bolas if "12" in b[:-1]) >= 2
     assert not any("13" in b for b in bolas)
+    # y el contrato que si es duro: ningun par de boletos comparte mas de uno
+    for i in range(len(bolas)):
+        for j in range(i + 1, len(bolas)):
+            assert len(set(bolas[i][:-1]) & set(bolas[j][:-1])) <= 1
 
 
 def test_semilla_fijada_reproduce_el_baseline_de_julio():

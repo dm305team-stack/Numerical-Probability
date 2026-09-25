@@ -221,3 +221,35 @@ def test_solapamiento_maximo_de_uno(motor):
         for j in range(i + 1, len(boletos)):
             compartidos = set(boletos[i][0]) & set(boletos[j][0])
             assert len(compartidos) <= 1
+
+
+def test_los_boletos_nunca_comparten_mas_de_uno_ni_con_numeros_forzados(motor):
+    """El contrato de solape <= 1 valia solo sin restricciones: los numeros
+    forzados se restaban de la cuenta y se entregaban boletos que compartian
+    tres numeros."""
+    import itertools
+    # Este caso exacto entregaba dos boletos con [7, 31, 55] compartidos.
+    # Ahora o cumple el contrato o se niega; lo que no puede es incumplirlo.
+    for semilla in range(6):
+        try:
+            boletos, _ = generar(
+                motor["score"], motor["score_extra"], POWERBALL, motor["perfil"],
+                semilla=semilla, cuantos=2, incluir=[7, 31, 55], incluir_en=2,
+            )
+        except NoConverge:
+            continue
+        for a, b in itertools.combinations(boletos, 2):
+            assert len(set(a[0]) & set(b[0])) <= 1
+
+
+def test_nunca_se_entrega_un_boleto_con_mas_bolas_de_las_que_caben(motor):
+    for n in (1, 2, 3):
+        try:
+            boletos, _ = generar(
+                motor["score"], motor["score_extra"], POWERBALL, motor["perfil"],
+                semilla=3, cuantos=n, incluir=[7, 19, 31, 44, 55, 66], incluir_en=2,
+            )
+        except NoConverge:
+            continue   # negarse es la respuesta correcta
+        for principales, _extra in boletos:
+            assert len(principales) == POWERBALL.principales

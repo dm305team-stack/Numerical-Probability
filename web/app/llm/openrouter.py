@@ -29,10 +29,14 @@ _DIGITO = re.compile(r"\d")
 
 # Numeros escritos con palabras: el regex de digitos no los caza, y "el
 # cuarenta y cuatro" al lado de boletos de verdad se lee como un boleto.
+# OJO con "un" y "una": en espanol son ARTICULOS, no numeros. Incluirlos hacia
+# que la guardia rechazase practicamente cualquier frase correcta ("una
+# combinacion", "un premio") y dejaba el modelo inservible. Un articulo no se
+# puede confundir con una bola; "uno" suelto si, y ese sigue bloqueado.
 _NUMERO_PALABRA = re.compile(
-    r"\b(cero|un[oa]?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|"
+    r"\b(cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|"
     r"doce|trece|catorce|quince|diecis|veinti|treinta|cuarenta|cincuenta|"
-    r"sesenta|setenta|ochenta|noventa|cien|mil|mill)", re.I)
+    r"sesenta|setenta|ochenta|noventa|cien|mil|mill)\b", re.I)
 
 # Vocabulario prohibido: promesas, supersticion de loteria y consejo financiero.
 # Estas son las frases que convertirian una herramienta de analisis en un
@@ -68,14 +72,22 @@ def _cabeceras():
     }
 
 
-async def _pedir(mensajes, *, esquema=None, max_tokens=700, temperatura=0.2, modelo=None):
+async def _pedir(mensajes, *, esquema=None, max_tokens=1600, temperatura=0.2,
+                 modelo=None, esfuerzo="low"):
     cuerpo = {
         "model": modelo or MODELO_POR_DEFECTO,
         "messages": mensajes,
         "max_tokens": max_tokens,
         "temperature": temperatura,
+        # Sin esto, los modelos de razonamiento se gastan TODO el cupo pensando
+        # y devuelven contenido vacio con finish_reason="length". Medido:
+        # 256 de 256 tokens en razonamiento y content=None.
+        "reasoning": {"effort": esfuerzo},
     }
     if esquema is not None:
+        # OpenAI en modo strict exige que 'required' incluya TODAS las claves de
+        # 'properties' y que additionalProperties sea false. Sin eso devuelve un
+        # 400 que OpenRouter reenvia como "Provider returned error".
         cuerpo["response_format"] = {
             "type": "json_schema",
             "json_schema": {"name": "parametros", "strict": True, "schema": esquema},
@@ -92,7 +104,7 @@ async def interpretar(texto, esquema, sistema):
     crudo = await _pedir(
         [{"role": "system", "content": sistema},
          {"role": "user", "content": texto}],
-        esquema=esquema, max_tokens=300,
+        esquema=esquema, max_tokens=1500,
     )
     params = json.loads(crudo)
     params["origen"] = "modelo"
@@ -165,7 +177,7 @@ async def redactar(parametros):
     texto = await _pedir(
         [{"role": "system", "content": SISTEMA_REDACCION},
          {"role": "user", "content": descripcion}],
-        max_tokens=400, temperatura=0.4, modelo=MODELO_REDACCION,
+        max_tokens=1600, temperatura=0.4, modelo=MODELO_REDACCION,
     )
     texto = (texto or "").strip()
     return texto, motivo_de_rechazo(texto)

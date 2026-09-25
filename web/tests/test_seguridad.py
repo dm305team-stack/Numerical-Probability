@@ -69,6 +69,8 @@ def test_peticion_imposible_no_quema_la_cpu():
     t = time.monotonic()
     cliente.post("/generar", data={
         "peticion": "dame 14 boletos con el 1 2 3 4 5 6 7 8 9 10"})
+    # 0,75 s de presupuesto de generacion + margen. Antes del parche eran 3,63 s.
+    # conftest.py apaga el modelo, asi que aqui no hay latencia de red.
     assert time.monotonic() - t < 2.0
 
 
@@ -188,3 +190,59 @@ def test_rigor_y_estado_tambien_estan_tras_la_puerta():
     assert sin_sesion.get("/rigor").status_code == 401
     assert sin_sesion.get("/salud").status_code == 401
     assert sin_sesion.get("/healthz").status_code == 200   # este es publico
+
+
+# --------------------------------------------- lo que rompio de verdad
+@pytest.mark.parametrize("cookie", ["café", "señal", "\u00ff", "ünicode", "日本"])
+def test_cookie_no_ascii_no_tumba_la_app(cookie):
+    """hmac.compare_digest sobre str lanza TypeError con un solo caracter
+    no-ASCII: una cookie con acento devolvia 500 en TODAS las rutas, sin clave
+    y sin pasar por el limitador."""
+    assert seguridad.sesion_valida(cookie) is False
+
+
+def test_clave_no_ascii_no_tumba_el_login():
+    assert seguridad.clave_correcta("contraseña") is False
+
+
+def test_la_sesion_legitima_sigue_valiendo():
+    assert seguridad.sesion_valida(seguridad.emitir_sesion()) is True
+
+
+def test_el_limitador_se_poda():
+    """Sin poda, _golpes crecia para siempre: 60.000 IPs distintas eran 60 MB."""
+    l = seguridad.Limitador(permitidas=1, ventana_s=0.01)
+    for i in range(seguridad.MAX_CUBOS + 500):
+        l.consultar(f"ip-{i}")
+    assert len(l._golpes) <= seguridad.MAX_CUBOS
+
+
+def test_ip_de_no_se_cree_la_cabecera_sin_proxy_de_confianza(monkeypatch):
+    """Creerse X-Forwarded-For sin proxy deja que el atacante elija su IP y
+    anule el limitador entero."""
+    class Falsa:
+        client = type("c", (), {"host": "203.0.113.9"})()
+        headers = {"x-forwarded-for": "1.2.3.4"}
+    monkeypatch.setattr(seguridad, "PROXIES_DE_CONFIANZA", set())
+    assert seguridad.ip_de(Falsa()) == "203.0.113.9"
+    monkeypatch.setattr(seguridad, "PROXIES_DE_CONFIANZA", {"203.0.113.9"})
+    assert seguridad.ip_de(Falsa()) == "1.2.3.4"
+
+
+def test_cookie_no_ascii_por_http_no_devuelve_500():
+    """El viaje completo, con bytes crudos.
+
+    El cliente de pruebas se niega a enviar cabeceras que no sean latin-1, asi
+    que se mandan ya codificadas: es como llegan por el socket. Antes del
+    parche esto devolvia 500 en CUALQUIER ruta, sin clave y sin pasar por el
+    limitador; un cliente en bucle dejaba la app inservible gratis.
+    """
+    c = TestClient(app)
+    crudo = "sesion=caf\xe9".encode("latin-1")
+    r = c.get("/healthz", headers={"Cookie": crudo})
+    assert r.status_code == 200
+    r2 = c.get("/", headers={"Cookie": crudo}, follow_redirects=False)
+    assert r2.status_code != 500
+    r3 = c.post("/generar", data={"peticion": "dame cinco"},
+                headers={"Cookie": crudo})
+    assert r3.status_code != 500

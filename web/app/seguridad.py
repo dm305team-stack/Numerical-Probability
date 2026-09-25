@@ -30,6 +30,8 @@ MAX_PETICION = 400        # una peticion de loteria no necesita mas
 MAX_SEMILLA_DIGITOS = 19  # cabe en 64 bits con holgura
 MAX_CLAVE = 256
 MAX_LISTA = 10            # cuantos numeros puede incluir o excluir a la vez
+MAX_CUERPO = 16 * 1024    # bytes de cuerpo admitidos: un boleto no necesita mas
+MAX_CUBOS = 20000         # IPs distintas que recuerda el limitador antes de podar
 MAX_BOLETOS = 14          # techo REAL medido bajo la regla de solape <= 1
 PRESUPUESTO_CPU = 0.75    # segundos de generacion por peticion
 
@@ -78,12 +80,29 @@ def emitir_sesion():
     return hmac.new(_secreto_servidor(), b"auth:v1", hashlib.sha256).hexdigest()
 
 
+def _iguales(a, b):
+    """Comparacion en tiempo constante que NO revienta.
+
+    hmac.compare_digest sobre str lanza TypeError si hay un solo caracter
+    no-ASCII. Una cookie con una 'e' acentuada tumbaba TODAS las rutas con un
+    500, sin clave y sin pasar por el limitador. Se compara en bytes.
+    """
+    try:
+        if isinstance(a, str):
+            a = a.encode("utf-8", "surrogatepass")
+        if isinstance(b, str):
+            b = b.encode("utf-8", "surrogatepass")
+        return hmac.compare_digest(a, b)
+    except (TypeError, ValueError, UnicodeError):
+        return False
+
+
 def sesion_valida(valor):
     if MODO_LOCAL and not APP_KEY:
         return True
     if not valor or not isinstance(valor, str):
         return False
-    return hmac.compare_digest(valor, emitir_sesion())
+    return _iguales(valor, emitir_sesion())
 
 
 def clave_correcta(entregada):
@@ -93,7 +112,7 @@ def clave_correcta(entregada):
         return False
     if len(entregada) > MAX_CLAVE:
         return False
-    return hmac.compare_digest(entregada.encode(), APP_KEY.encode())
+    return _iguales(entregada, APP_KEY)
 
 
 # ------------------------------------------------------------- limitador
@@ -114,9 +133,25 @@ class Limitador:
     def _ahora(self):
         return time.monotonic()
 
+    def _podar(self, ahora):
+        """Sin esto, _golpes crece para siempre: 60.000 IPs distintas medidas
+        anadian 60 MB de RSS y nada las borraba salvo un login acertado."""
+        if len(self._golpes) < MAX_CUBOS and len(self._bloqueados) < MAX_CUBOS:
+            return
+        for k in [k for k, v in self._bloqueados.items() if v <= ahora]:
+            del self._bloqueados[k]
+        for k in [k for k, c in self._golpes.items()
+                  if not c or c[-1] < ahora - self.ventana]:
+            del self._golpes[k]
+        if len(self._golpes) >= MAX_CUBOS:
+            # ultimo recurso: se vacia entero. Perder memoria de quien ha
+            # llamado es preferible a quedarse sin memoria.
+            self._golpes.clear()
+
     def consultar(self, clave):
         """Devuelve segundos que faltan para poder reintentar, o 0 si pasa."""
         ahora = self._ahora()
+        self._podar(ahora)
         hasta = self._bloqueados.get(clave, 0)
         if hasta > ahora:
             return int(hasta - ahora) + 1
@@ -172,10 +207,32 @@ class PresupuestoDiario:
 PRESUPUESTO_LLM = PresupuestoDiario()
 
 
+# IPs de los proxies en los que confiamos para leer X-Forwarded-For.
+# VACIO a proposito: sin configurarlo NO se lee ninguna cabecera, porque
+# creersela sin proxy delante deja que el atacante elija su propia IP y anule
+# el limitador entero.
+PROXIES_DE_CONFIANZA = {
+    x.strip() for x in os.environ.get("PROXIES_DE_CONFIANZA", "").split(",") if x.strip()
+}
+
+
 def ip_de(request):
-    """IP del cliente. Detras de un proxy solo es fiable si uvicorn corre con
-    --forwarded-allow-ips apuntando al proxy; si no, todos comparten cubo."""
-    return (request.client.host if request.client else "desconocida")
+    """IP real del cliente.
+
+    Las dos formas de equivocarse aqui, y las dos son graves:
+      - Fiarse de X-Forwarded-For sin proxy -> el atacante pone la IP que
+        quiera y el limitador no limita nada.
+      - No leerla habiendo proxy -> todo el mundo comparte cubo, y cinco
+        contrasenas malas de un desconocido dejan sin entrar a todo el equipo.
+    Por eso solo se lee si el salto inmediato esta en PROXIES_DE_CONFIANZA.
+    """
+    directa = request.client.host if request.client else "desconocida"
+    if directa in PROXIES_DE_CONFIANZA:
+        reenviada = request.headers.get("x-forwarded-for", "")
+        primera = reenviada.split(",")[0].strip()
+        if primera:
+            return primera[:64]
+    return directa
 
 
 # ------------------------------------------------------------- saneado

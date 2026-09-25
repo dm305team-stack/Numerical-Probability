@@ -12,10 +12,14 @@ import re
 
 import seguridad
 
+MAX_LISTA = seguridad.MAX_LISTA
 MAX_BOLETOS = seguridad.MAX_BOLETOS   # 14: el techo REAL bajo la regla de solape <= 1
 
 ESQUEMA = {
     "type": "object",
+    # strict exige additionalProperties:false y que 'required' liste TODAS las
+    # claves de 'properties'. Faltaba 'explicacion' y daba 400.
+    "additionalProperties": False,
     "properties": {
         "cuantos": {
             "type": "integer",
@@ -24,11 +28,13 @@ ESQUEMA = {
         "incluir": {
             "type": "array",
             "items": {"type": "integer"},
+            "maxItems": MAX_LISTA,
             "description": "numeros que el usuario quiere que aparezcan",
         },
         "excluir": {
             "type": "array",
             "items": {"type": "integer"},
+            "maxItems": MAX_LISTA,
             "description": "numeros que el usuario quiere evitar",
         },
         "incluir_en": {
@@ -40,7 +46,7 @@ ESQUEMA = {
             "description": "en una frase, que has entendido. Sin cifras.",
         },
     },
-    "required": ["cuantos", "incluir", "excluir", "incluir_en"],
+    "required": ["cuantos", "incluir", "excluir", "incluir_en", "explicacion"],
 }
 
 SISTEMA = """Eres el interprete de peticiones de una app de loteria.

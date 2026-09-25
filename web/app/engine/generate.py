@@ -40,7 +40,8 @@ def generar(
     """Genera `cuantos` boletos deterministas a partir de `semilla`.
 
     incluir      numeros que deben aparecer
-    incluir_en   en cuantos boletos debe aparecer cada numero de `incluir`
+    incluir_en   en cuantos boletos debe aparecer COMO MINIMO cada numero de
+                 `incluir`; puede salir en mas si el azar lo elige
     excluir      numeros prohibidos, tanto en principales como en la bola extra
     """
     incluir = sorted(set(incluir))
@@ -83,6 +84,13 @@ def generar(
         while len(elegidos) < matriz.principales:
             elegidos.add(rng.choices(poblacion, weights=pesos)[0])
         principales = sorted(elegidos)
+        if len(principales) != matriz.principales:
+            # solo puede pasar si los forzados de un boleto pasan de las bolas
+            # que caben. Un boleto de 6 bolas no se puede ni comprar.
+            raise NoConverge(
+                f"pides {len(principales)} números forzados en un mismo boleto "
+                f"y sólo caben {matriz.principales}"
+            )
         extra = rng.choices(poblacion_e, weights=pesos_e)[0]
         if _acepta(
             principales, extra, rng, q1, q3, umbral_bajos, matriz,
@@ -95,8 +103,10 @@ def generar(
     if len(boletos) < cuantos:
         raise NoConverge(
             f"solo salieron {len(boletos)} de {cuantos} boletos: las restricciones "
-            f"no dejan sitio para tantos. Con la regla de un solo número "
-            f"compartido entre boletos, el máximo son 14."
+            f"no dejan sitio para tantos. Los boletos no pueden compartir más de "
+            f"{MAX_SOLAPAMIENTO} número entre sí, así que repetir varios números "
+            f"fijos en varios boletos choca con esa regla. Sin restricciones, el "
+            f"máximo son 14."
         )
     return boletos, intentos
 
@@ -125,8 +135,12 @@ def _acepta(
         return False
     if extra in extras_usadas:
         return False
-    # los numeros forzados no cuentan como solapamiento: el usuario los pidio
-    compartidos = (numeros_usados & set(principales)) - obligatorios
+    # El solapamiento se cuenta ENTERO, incluidos los numeros forzados.
+    # Antes se restaban los obligatorios "porque el usuario los pidio", y eso
+    # permitia entregar dos boletos que compartian 3 numeros, rompiendo el
+    # contrato que el propio motor promete. Si pedir un numero en varios
+    # boletos choca con el limite de solape, se avisa; no se incumple.
+    compartidos = numeros_usados & set(principales)
     if len(compartidos) > MAX_SOLAPAMIENTO:
         return False
     return True
