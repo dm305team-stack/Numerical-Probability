@@ -1,33 +1,22 @@
-# Secretos: el repo es PÚBLICO. Nada de esto entra jamás.
+# El repositorio es PRIVADO, así que aquí entran los PDF de terceros, el plugin
+# ECC y la app ya construida.
+#
+# El .env se queda FUERA igualmente. No es por la visibilidad del repo: las
+# claves vivas no viajan a un remoto, y menos quedándose en el historial de git
+# para siempre. Van directas al VPS por variables de entorno o secretos de
+# Docker. La plantilla .env.example documenta cuáles hacen falta.
 .env
 .env.*
-# ...pero la plantilla SÍ va al repo: es la documentación de qué variables hacen
-# falta. Sin esta excepción, `.env.*` también la tapaba.
 !.env.example
 *.key
-secrets/
 
-# Dependencias descargadas y artefactos de compilación
+# Intermedios del compilador de Swift: 924 MB que salen solos de `swift build`.
 .build/
-dist/
+
+# Cachés: ruido puro
 __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
 node_modules/
-
-# El plugin ECC: 94 MB de código de terceros, no es de este proyecto
-ECC/
-
-# Derivados que se regeneran solos
-web/data/analysis_cache.json
-web/data/*.db
-web/data/*.db-*
-
-# Material de terceros con derechos: no se redistribuye
-Knowledge/Leonardo of Pisa (Fibonacci).pdf
-Knowledge/Markov Chains_ Concept and Applications.pdf
-Knowledge/Richard Wiseman’s The Luck Factor.pdf
-
-# Ruido de macOS
 .DS_Store
